@@ -1,0 +1,476 @@
+---
+title: "02 - NLP litholog prediction"
+author: "Steven Pawley"
+format: 
+  html:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+self-contained: true
+execute: 
+  message: false
+  warning: false
+editor_options: 
+  chunk_output_type: console
+---
+
+## Setup
+
+```{r setup}
+library(here)
+library(tidyverse)
+library(dtplyr)
+library(sf)
+library(terra)
+library(tidyterra)
+library(colorspace, exclude = "RGB")
+library(tidymodels)
+library(textrecipes)
+library(probably)
+library(stopwords)
+library(tidytext)
+library(slider)
+library(rules)
+library(doFuture)
+library(future)
+library(parallel)
+library(C50)
+
+source(here("R/functions/dtb.R"))
+source(here("R/functions/nlp.R"))
+
+theme_set(theme_bw())
+```
+
+## Examine compiled DTB data
+
+### Data sources
+
+Read bedrock top picks and water wells lithologs:
+
+```{r read-data}
+ab_bnd <- vect(here("projdata/bnd-ab.gpkg"))
+
+picks <- readRDS(here("projdata/picks.rds"))
+
+lithologs <- readRDS(here("projdata/lithologs.rds"))
+```
+
+Summarize the compiled pick data based on the type of observation (borehole, outcrop etc.):
+
+```{r summarize-pick-obs}
+summarize_data_type(picks)
+```
+
+From the boreholes, show the percentage that come from different industries:
+
+```{r summarize-borehole-sources}
+summarize_borehole_sources(picks)
+```
+
+```{r plot-pick-sources}
+#| fig-height: 7
+#| fig-width: 9
+picks_vct <- picks |>
+  mutate(
+    data_type = forcats::fct_recode(
+      data_type,
+      "Pseudo-observation" = "Contour"
+    )
+  ) |>
+  vect(geom = c("longitude", "latitude"), crs = "EPSG:4326") |> 
+  project("EPSG:3402")
+
+ggplot() +
+  geom_spatvector(
+    data = picks_vct, aes(color = data_type), shape = 16,
+    size = 0.1
+  ) +
+  geom_spatvector(data = ab_bnd, fill = "transparent") +
+  labs(color = NULL) +
+  scale_color_discrete_qualitative(palette = "Dynamic") +
+  guides(color = guide_legend(override.aes = list(size = 3))) +
+  theme(legend.position = "top")
+```
+
+### Data range
+
+```{r plot-dtb}
+ggplot() +
+  geom_spatvector(
+    data = picks_vct, aes(color = bedrock_dep), shape = 16,
+    size = 0.1
+  ) +
+  geom_spatvector(data = ab_bnd, fill = "transparent") +
+  labs(color = "DTB [m]") +
+  scale_colour_viridis_c(option = "magma", direction = -1)
+```
+
+## Data splitting
+
+Subset the picks from water wells only:
+
+```{r subset-water-wells}
+picks_waterwells <- picks |> 
+  filter(source_type == "Water well") |>
+  mutate(id = as.integer(id)) |>
+  drop_na(id) |>
+  rename(gicwellid = "id")
+```
+
+Snap picks to water well intervals and assign units for labelled logs:
+
+```{r snap-and-assign}
+lithologs_assigned <- lithologs |>
+  lithologs_join(picks_waterwells) |>
+  lithologs_snap() |>
+  lithologs_assign()
+```
+
+Split labelled logs into labelled and unlabelled portions. Poor quality lithologs
+are removed based on:
+
+ - Dropping those with a single enormously thick upper interval.
+ - Dropping logs that contain missing terms (based on a regular expression that
+ detects typical descriptions that indicate that an interval was not described, 
+ i.e., 'not recorded', 'missing', etc.
+ - Dropping logs that contain only one interval.
+
+```{r split-labelled-unlabelled}
+missing_regex <- paste(nan_terms, collapse = "|")
+gravel_regex <- paste(gravel_terms, collapse = "|")
+
+labelled <- lithologs_assigned |>
+  group_by(gicwellid) |>
+  filter(
+    !is.na(unit),
+    !any(str_detect(tolower(material), missing_regex)),
+    !first(int_bot_dep) > 100,
+    n() > 1
+  ) |>
+  select(-bedrock_dep) |> 
+  ungroup()
+
+newdata <- lithologs_assigned |>
+  group_by(gicwellid) |>
+  filter(
+    is.na(unit),
+    !any(str_detect(tolower(material), missing_regex)),
+    !first(int_bot_dep) > 100,
+    n() > 1
+  ) |>
+  select(-c(bedrock_dep, unit)) |> 
+  ungroup()
+```
+
+## EDA
+
+Plotting the 20 most commonly used words in each unit for material descriptions. Bedrock intervals are distinguished by terms like 'shale', 'sandstone', 'coal' and 'hard', where surficial intervals are commonly described by 'clay', 'till', 'sand', 'gravel'. Some formation-specific words are also present in bedrock intervals.
+
+Colour does not show such a strong distinction between bedrock and surficial. Bedrock units are overall described as 'grey' and surficial contain a mixture of 'brown' and 'grey' terms. Terms such as 'green' appear to be largely described to bedrock units, whereas surficial intervals are sometimes described as 'yellow', 'brown yellow' etc.
+
+```{r word-occurrences}
+words_materials <- labelled |>
+  unite("material", c(material, material_desc), sep = " ", na.rm = TRUE) |>
+  unnest_tokens(word, material) |> 
+  anti_join(stop_words, by = "word")
+
+unique_words <- function(x) {
+  words <- str_split(x, " ")
+  words <- map(words, function(string) unique(string))
+  unique_words <- map_chr(words, function(string) {
+    string[string == ""] <- NA
+    string <- na.omit(string)
+    paste(string, collapse = " ")
+  })
+  unique_words[unique_words == ""] <- NA_character_
+  unique_words
+}
+
+words_colours <- labelled |>
+  unnest_tokens(word, colour, token = "ngrams", n = 2) |> 
+  mutate(
+    word = str_remove_all(word, "na"),
+    word = unique_words(word)
+  ) |> 
+  drop_na()
+
+words_materials$type <- "Material"
+words_colours$type <- "Colour"
+
+bind_rows(words_materials, words_colours) |> 
+  group_by(unit, word, type) |> 
+  count(sort = TRUE) |> 
+  group_by(unit, type) |> 
+  slice(1:10) |> 
+  group_by(type) |> 
+  mutate(prop = n / sum(n)) |> 
+  ggplot(aes(x = prop, y = reorder(word, prop), fill = unit)) +
+  geom_col(colour = "black") +
+  facet_wrap(vars(type), scales = "free") +
+  ylab("Term") +
+  xlab("Proportion usage") +
+  labs(fill = "Unit") +
+  scale_fill_brewer(palette = "Set2")
+```
+
+## NLP modelling
+
+### Feature engineering
+
+Select only columns that relate to the NLP prediction - the intervals descriptions
+and depths. Spatial location is not used because we are not looking to interpolate
+the bedrock depths, only predict the label of each interval as 'Surficial' or
+'Bedrock'.
+
+Additional features are added to the lithologs that describe aspects related to:
+
+ - Occurrence of specific combinations of terms based on some simple 
+ text-pattern matching (regex), particularly related to gravel units.
+ - Properties of the lithologs such as maximum depth, thickness of each interval,
+ number of intervals, relative depth in the borehole, presence of water-bearing
+ units.
+
+```{r feature-engineering}
+labelled_feat <- labelled |>
+  select(c(
+    "unit",
+    "gicwellid",
+    "bh_depth",
+    "int_top_dep",
+    "int_bot_dep",
+    "material",
+    "material_desc",
+    "colour",
+    "waterbearing"
+  )) |>
+  add_features()
+
+newdata_feat <- newdata |>
+  select(c(
+    "gicwellid",
+    "bh_depth",
+    "int_top_dep",
+    "int_bot_dep",
+    "material",
+    "material_desc",
+    "colour",
+    "waterbearing"
+  )) |>
+  add_features()
+```
+
+### Model definition
+
+```{r nlp-recipes}
+rec <- labelled_feat |>
+  recipe_nlp()
+
+clf <- boost_tree(trees = 500, learn_rate = 0.1, stop_iter = 20L) |>
+  set_mode("classification") |>
+  set_engine("xgboost", nthread = future::availableCores(), 
+             tree_method = "gpu_hist")
+
+wflow <- workflow() |>
+  add_recipe(rec) |>
+  add_model(clf)
+```
+
+### Model training
+
+```{r model-fitting}
+model_nlp <- wflow |>
+  fit(labelled_feat)
+```
+
+```{r feature-importances}
+vip::vip(model_nlp, num_features = 20)
+```
+
+### Cross validation
+
+```{r cross-validation}
+# define resamples
+set.seed(1)
+resamples <- group_vfold_cv(labelled_feat, group = "gicwellid", v = 10)
+
+# fitting control
+ctrl <- control_resamples(
+  event_level = "first",
+  allow_par = FALSE,
+  verbose = FALSE,
+  save_pred = TRUE
+)
+
+# cross-validation
+set.seed(42)
+resample_results <- 
+  fit_resamples(
+    wflow,
+    resamples = resamples,
+    metrics = metric_set(mn_log_loss),
+    control = ctrl
+  )
+```
+
+### Model evaluation
+
+Log loss on predicting the label:
+
+```{r logloss}
+score_logloss <- resample_results |>
+  collect_metrics() |>
+  filter(.metric == "mn_log_loss") |>
+  slice_min(mean)
+
+score_logloss
+```
+
+Assess the sensitivity and specificity at different cutoff thresholds. The prediction is not very sensitive to the cutoff threshold.
+
+```{r cutoff-thresholds}
+resample_preds <- augment(resample_results)
+
+threshold_data <- resample_preds |>
+  threshold_perf(
+    unit,
+    .pred_Bedrock,
+    thresholds = seq(0.01, 1, by = 0.005),
+    metrics = metric_set(sens, spec, precision, j_index)
+  )
+
+threshold_data <- threshold_data |> 
+  filter(.metric != "distance")
+
+max_j_index_threshold <- threshold_data %>%
+  filter(.metric == "j_index") %>%
+  filter(.estimate == max(.estimate)) %>%
+  pull(.threshold)
+
+threshold_data |> 
+  ggplot(aes(x = .threshold, y = .estimate, color = .metric)) +
+  geom_line(alpha = 0.6) +
+  scale_color_brewer(palette = "Set1") +
+  geom_vline(xintercept = max_j_index_threshold, color = "grey30") +
+  scale_x_continuous(breaks = seq(0, 1, by = 0.1)) +
+  labs(
+    x = "Threshold",
+    y = "Metric Estimate",
+    title = "Balancing performance by varying the threshold"
+  )
+
+cutoff <- 0.7
+```
+
+RMSE on predicting the depth:
+
+```{r rmse}
+resample_results_dtb <- resample_preds |>
+  mutate(.pred_class = make_two_class_pred(
+    .pred_Bedrock,
+    threshold = cutoff,
+    levels = c("Bedrock", "Surficial"),
+    buffer = 0.1
+  )) |>
+  pick_bedrock(option = "first")
+
+resample_results_dtb <- inner_join(
+  select(picks_waterwells, c(gicwellid, bedrock_dep)),
+  resample_results_dtb,
+  by = "gicwellid"
+)
+
+score_rmse <- rmse(
+  resample_results_dtb,
+  truth = bedrock_dep,
+  estimate = .bedrock_dep
+)
+
+score_rmse
+```
+
+```{r histogram-residuals}
+resample_results_dtb |> 
+  ggplot(aes(x = bedrock_dep - .bedrock_dep)) +
+  geom_histogram(bins = 50) +
+  xlab("Residuals [m]")
+```
+
+View the spatial distribution of the residuals:
+
+```{r spatial-residuals}
+cv_picks <- resample_preds |>
+  mutate(.pred_class = make_two_class_pred(
+    .pred_Bedrock,
+    threshold = cutoff,
+    levels = c("Bedrock", "Surficial"),
+    buffer = 0.1
+  ))
+
+cv_tops <- pick_bedrock(cv_picks, option = "last") |> 
+  inner_join(picks_waterwells, by = join_by("gicwellid")) |>
+  mutate(.residual = bedrock_dep - .bedrock_dep)
+
+write_csv(cv_tops, here("outputs/picks-nlp-cv.csv"))
+```
+
+```{r plot-residuals-spatially}
+cv_tops |> 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) |>
+  ggplot() +
+  geom_sf(aes(colour = .residual), size = 0.1) +
+  scale_colour_continuous_diverging() +
+  labs(colour = "Residual [m]")
+```
+
+### Prediction
+
+```{r nlp-prediction}
+predictions <- predict(model_nlp, newdata_feat, type = "prob")
+```
+
+```{r create-picks-table}
+predictions <- predictions |>
+  mutate(.pred_class = make_two_class_pred(
+    .pred_Bedrock,
+    threshold = cutoff,
+    levels = c("Bedrock", "Surficial"),
+    buffer = 0.1
+  ))
+
+picks_nlp <- bind_cols(predictions, newdata)
+
+picks_nlp <-
+  inner_join(picks_nlp, pick_bedrock(picks_nlp, option = "first")) |>
+  rename(bedrock_dep = ".bedrock_dep") |>
+  select("gicwellid", "longitude", "latitude", "gr_elev", "bedrock_dep") |>
+  mutate(
+    data_type = "Borehole",
+    ags_source = "NLP autopicked",
+    pick_date = Sys.Date(),
+    source_type = "Water well",
+    stratigraphy = "Bedrock top",
+    data_source = "Water well",
+    bedrock_elev = gr_elev - bedrock_dep
+  ) |>
+  distinct(gicwellid, .keep_all = TRUE)
+
+write_csv(picks, here("outputs/picks.csv"))
+write_csv(picks_nlp, here("outputs/picks-nlp.csv"))
+```
+
+```{r nlp-prediction-example}
+id <- 186147
+
+predict(model_nlp, newdata_feat |> filter(gicwellid == !!id), type = "prob") |> 
+  bind_cols(newdata_feat |> filter(gicwellid == !!id)) |> 
+  select(gicwellid, int_top_dep, material, material_desc, colour, .pred_Bedrock)
+```
+
+### Store results
+
+```{r store-results}
+write_rds(model_nlp, here("models/model-nlp.rds"))
+write_rds(resample_results, here("models/resamples-nlp.rds"))
+write_rds(picks_nlp, here("data/processed/picks-nlp.rds"))
+```

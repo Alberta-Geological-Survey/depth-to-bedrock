@@ -1,0 +1,169 @@
+---
+title: "01 - Grids"
+author: "Steven Pawley"
+format: html
+self-contained: true
+execute: 
+  message: false
+  warning: false
+---
+
+## Setup
+
+```{r setup}
+library(here)
+library(tidyverse)
+library(terra)
+library(sf)
+library(rstac)
+library(luna)
+library(future)
+library(httr2)
+source(here("R/functions/predictors.R"))
+```
+
+## Create project structure
+
+```{r create-folder-structure}
+dir.create(here("data/raw"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here("data/processed"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here("models"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here("outputs"), recursive = TRUE, showWarnings = FALSE)
+```
+
+## Download ALOS DEM
+
+```{r download-alos-dem}
+s_obj <- stac("https://planetarycomputer.microsoft.com/api/stac/v1/")
+
+it_obj <- s_obj |>
+  stac_search(
+    collections = "alos-dem",
+    bbox = c(-121, 49, -108, 61.5)
+  ) |>
+  get_request()
+
+print(paste("Number of tiles:", length(it_obj$features)))
+
+# merge tiles
+urls <- sapply(it_obj$features, function(x) paste0("/vsicurl/", x$assets$data$href))
+dem_tiles <- lapply(urls, rast)
+dem <- sprc(dem_tiles)
+dem_merged <- merge(dem)
+
+# reproject to 10tm
+dem_merged <- project(dem_merged, "EPSG:3402", threads = availableCores())
+
+# write to disk
+writeRaster(dem_merged, here("data/raw/alos-dem.tif"), overwrite = TRUE)
+```
+
+```{r plot-alos}
+dem_merged <- rast(here("data/raw/alos-dem.tif"))
+plot(dem_merged)
+```
+
+## Download MODIS
+
+```{r download-raw-raster-datasets}
+start <- "2020-07-01"
+end <- "2020-08-30"
+product <- "MOD09A1"
+
+bnd <- ext(c(xmin = -121, xmax = -108, ymin = 49, ymax = 61.5))
+bnd <- vect(bnd)
+crs(bnd) <- "EPSG:4326"
+
+mf <- getNASA(
+  product,
+  start,
+  end,
+  aoi = bnd,
+  download = TRUE,
+  path = tempdir(),
+  username = Sys.getenv("EARTHDATA_USER"),
+  password = Sys.getenv("EARTHDATA_KEY"),
+  overwrite = TRUE
+)
+
+from <- c(1, 3, 11, 14)
+to <- c(2, 3, 11, 14)
+reject <- c("01,10", "1", "1", "1")
+qa_bits <- cbind(from, to, reject)
+
+rasters <- sapply(mf, function(f) {
+  try({
+    x <- rast(f)
+    quality_mask <- luna::modis_mask(x[[12]], 16, qa_bits)
+    x <- x[[1:7]]
+    mask(x, quality_mask)
+  })
+})
+
+modis <- sprc(rasters)
+modis <- merge(modis)
+
+modis_tm <- project(
+  modis,
+  "epsg:3402",
+  threads = availableCores()
+)
+
+bnd_dst <- project(bnd, "epsg:3402")
+modis_tm_cropped <- crop(modis_tm, bnd_dst)
+
+# write to disk
+writeRaster(modis_tm_cropped, here("data/raw/modis.tif"), overwrite = TRUE)
+```
+
+```{r plot-modis}
+modis_tm_cropped <- rast(here("data/raw/modis.tif"))
+plot(modis_tm_cropped$sur_refl_b07)
+```
+
+## Download Alberta Boundary
+
+```{r download-ab-bnd}
+ab_bnd <- request("https://geospatial.alberta.ca/titan/rest/services") |> 
+  req_url_path_append("boundary/goa_administrative_area/MapServer/0/query") |> 
+  req_url_query(f = "geojson", where = "1=1", outFields = "*", returnGeometry = "true") |> 
+  pluck("url") |> 
+  vect() |> 
+  project("EPSG:3402")
+
+writeVector(ab_bnd, here("projdata/bnd-ab.gpkg"), overwrite = TRUE)
+```
+
+
+## Terrain Analysis
+
+```{r}
+terrain_grids <- dem_merged |> 
+  terrain_analysis(res = 500)
+```
+
+```{r plot-terrain}
+plot(terrain_grids)
+```
+
+## Align grids
+
+```{r align-grids}
+# resample modis data
+modis_aligned <- terra::resample(modis_tm_cropped, terrain_grids)
+
+# add x,y coordinate grids
+xcoords <- terra::init(terrain_grids, "x") |>
+  setNames("xcoords")
+
+ycoords <- terra::init(terrain_grids, "y") |>
+  setNames("ycoords")
+
+stacked <- c(terrain_grids, modis_aligned, xcoords, ycoords)
+```
+
+```{r store-predictors}
+writeRaster(stacked,
+            here("data/processed/predictors.tif"),
+            overwrite = TRUE)
+```
