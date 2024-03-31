@@ -90,7 +90,7 @@ The folder structure is organized as follows:
 
 ## Data
 
-The data include the following:
+The data includes the following:
 
 - a geological pick dataset (‘picks.rds’) as a R data format (RDS)
   binary object. These data are also available from the Alberta
