@@ -112,7 +112,7 @@ are organized into the following files:
 
 - `01-grids.qmd`: Quarto notebook to download and prepare remote sensing
   data and terrain analysis.
-- `02-nlp.qmd`: Quarto notebok to prepare lithological descriptions for
+- `02-nlp.qmd`: Quarto notebook to prepare lithological descriptions for
   machine learning.
 - `03-training-data.R`: Prepare the training dataset that is used in the
   depth to bedrock machine learning model, i.e., prepare the feature
