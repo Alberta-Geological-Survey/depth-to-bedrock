@@ -5,6 +5,7 @@
 
 Code repository for the PLOS ONE article ‘Evaluating spatially enabled
 machine learning approaches for depth to bedrock mapping’.
+https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0296881
 
 ## Overview
 
