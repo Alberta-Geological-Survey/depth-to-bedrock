@@ -55,6 +55,8 @@ For Windows users, the installation has to be performed manually by
 downloading the SAGA-GIS binary from
 [Sourceforge](https://sourceforge.net/projects/saga-gis/) and then
 adding the path to the SAGA installation directory to PATH.
+A more complete install of QGIS including SAGA will also get you the saga_cmd.exe 
+executable.  For example:/ C:\Program Files\QGIS 3.28.12\apps\saga\saga_cmd.exe.
 
 In addition, the project automatically downloads the required remote
 sensing datasets. To download the MODIS data, a free NASA Earthdata
