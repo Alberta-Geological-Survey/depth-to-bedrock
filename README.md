@@ -93,11 +93,11 @@ The folder structure is organized as follows:
 The data includes the following:
 
 - a geological pick dataset (‘picks.rds’) as a R data format (RDS)
-  binary object. These data are also available from the Alberta
+  binary object. This data is also available from the Alberta
   Geological Survey (<https://ags.aer.ca/data-maps-models/digital-data>)
 - water well data (‘lithologs.rds’), created on Nov 14, 2023 from data
-  that are available in the Alberta Water Well Information Database.
-- polygon features (‘physio-pettapiece.gpkg’) delinating the
+  that is available in the Alberta Water Well Information Database.
+- polygon features (‘physio-pettapiece.gpkg’) delineating the
   physiographic regions of Alberta, derived from [Physiographic regions
   of
   Alberta](https://open.alberta.ca/publications/physiographic-subdivisions-of-alberta).
