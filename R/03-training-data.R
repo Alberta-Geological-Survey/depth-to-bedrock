@@ -7,6 +7,7 @@ library(conflicted)
 source(here("R/functions/dtb.R"))
 
 conflicts_prefer(terra::extract)
+conflicts_prefer(dplyr::filter)
 
 # read data ----
 predictors <- rast(here("data/processed/predictors.tif"))
