@@ -5,6 +5,7 @@
 
 Code repository for the PLOS ONE article ‘Evaluating spatially enabled
 machine learning approaches for depth to bedrock mapping’.
+https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0296881
 
 ## Overview
 
@@ -54,6 +55,8 @@ For Windows users, the installation has to be performed manually by
 downloading the SAGA-GIS binary from
 [Sourceforge](https://sourceforge.net/projects/saga-gis/) and then
 adding the path to the SAGA installation directory to PATH.
+A more complete install of QGIS including SAGA will also get you the saga_cmd.exe 
+executable.  For example:/ C:\Program Files\QGIS 3.28.12\apps\saga\saga_cmd.exe.
 
 In addition, the project automatically downloads the required remote
 sensing datasets. To download the MODIS data, a free NASA Earthdata
@@ -89,14 +92,14 @@ The folder structure is organized as follows:
 
 ## Data
 
-The data include the following:
+The data includes the following:
 
 - a geological pick dataset (‘picks.rds’) as a R data format (RDS)
-  binary object. These data are also available from the Alberta
+  binary object. This data is also available from the Alberta
   Geological Survey (<https://ags.aer.ca/data-maps-models/digital-data>)
 - water well data (‘lithologs.rds’), created on Nov 14, 2023 from data
-  that are available in the Alberta Water Well Information Database.
-- polygon features (‘physio-pettapiece.gpkg’) delinating the
+  that is available in the Alberta Water Well Information Database.
+- polygon features (‘physio-pettapiece.gpkg’) delineating the
   physiographic regions of Alberta, derived from [Physiographic regions
   of
   Alberta](https://open.alberta.ca/publications/physiographic-subdivisions-of-alberta).
@@ -111,7 +114,7 @@ are organized into the following files:
 
 - `01-grids.qmd`: Quarto notebook to download and prepare remote sensing
   data and terrain analysis.
-- `02-nlp.qmd`: Quarto notebok to prepare lithological descriptions for
+- `02-nlp.qmd`: Quarto notebook to prepare lithological descriptions for
   machine learning.
 - `03-training-data.R`: Prepare the training dataset that is used in the
   depth to bedrock machine learning model, i.e., prepare the feature
