@@ -4,7 +4,7 @@ library(terra)
 library(sf)
 library(nngeo)
 library(conflicted)
-source(here("R/functions/dtb.R"))
+source(here("R/dtb.R"))
 
 conflicts_prefer(terra::extract)
 conflicts_prefer(dplyr::filter)

@@ -42,8 +42,8 @@ library(tidymodels)
 library(tidyposterior)
 library(pins)
 library(httr2)
-source(here("R/functions/plots.R"))
-source(here("R/functions/dtb.R"))
+source(here("R/plots.R"))
+source(here("R/dtb.R"))
 
 n_cores <- parallel::detectCores()
 

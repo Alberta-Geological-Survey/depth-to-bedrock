@@ -36,8 +36,8 @@ library(future)
 library(parallel)
 library(C50)
 
-source(here("R/functions/dtb.R"))
-source(here("R/functions/nlp.R"))
+source(here("R/dtb.R"))
+source(here("R/nlp.R"))
 
 theme_set(theme_bw())
 ```

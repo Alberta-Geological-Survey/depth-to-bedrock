@@ -6,8 +6,8 @@ library(progressr)
 library(tidymodels)
 library(rules)
 library(spatialrecipes)
-source(here("R/functions/dtb.R"))
-source(here("R/functions/resampling.R"))
+source(here("R/dtb.R"))
+source(here("R/resampling.R"))
 
 # read data ----
 predictors <- rast(here("data/processed/predictors.tif"))

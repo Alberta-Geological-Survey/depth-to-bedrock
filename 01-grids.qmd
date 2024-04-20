@@ -19,7 +19,7 @@ library(rstac)
 library(luna)
 library(future)
 library(httr2)
-source(here("R/functions/predictors.R"))
+source(here("R/predictors.R"))
 ```
 
 ## Create project structure

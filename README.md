@@ -81,7 +81,8 @@ training time.
 
 The folder structure is organized as follows:
 
-- `R`: R scripts used to prepare data and run the model.
+- `/`: R scripts used to prepare data and run the model.
+- `R`: Functions used by the scripts.
 - `projdata`: Data required by the model and visualizations.
 - `outputs`: Model results (created by the scripts).
 - `models`: Trained models (created by the scripts).
@@ -134,24 +135,23 @@ structure will look like:
 fs::dir_tree(recurse = 2)
 #> .
 #> ├── LICENSE
+#> ├── 01-grids.qmd
+#> ├── 02-nlp.qmd
+#> ├── 03-training-data.R
+#> ├── 04-experiments.R
+#> ├── 05-idw.R
+#> ├── 06-kriging.R
+#> ├── 07-provincial-model.R
+#> ├── 08-analysis-results.qmd
 #> ├── R
-#> │   ├── 01-grids.qmd
-#> │   ├── 02-nlp.qmd
-#> │   ├── 03-training-data.R
-#> │   ├── 04-experiments.R
-#> │   ├── 05-idw.R
-#> │   ├── 06-kriging.R
-#> │   ├── 07-provincial-model.R
-#> │   ├── 08-analysis-results.qmd
-#> │   ├── functions
-#> │   │   ├── dtb.R
-#> │   │   ├── nlp.R
-#> │   │   ├── plots.R
-#> │   │   ├── predictors.R
-#> │   │   └── resampling.R
-#> │   ├── plos-one.csl
-#> │   ├── plos2015.bst
-#> │   └── zotero.bib
+#> │   ├── dtb.R
+#> │   ├── nlp.R
+#> │   ├── plots.R
+#> │   ├── predictors.R
+#> │   └── resampling.R
+#> ├── plos-one.csl
+#> ├── plos2015.bst
+#> ├── zotero.bib
 #> ├── README.Rmd
 #> ├── README.md
 #> ├── _dependencies.R
