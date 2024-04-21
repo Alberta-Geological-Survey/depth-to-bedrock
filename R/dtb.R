@@ -1,3 +1,50 @@
+#' Combine compiled and NLP predicted picks
+#'
+#' @param picks_comp tibble of compiled pick data
+#' @param picks_nlp tibble of NLP predicted pick data
+#'
+#' @return tibble
+#' @export
+combine_picks <- function(picks_comp, picks_nlp) {
+  ## only use predicted picks where others are sparse
+  k <- ifelse(nrow(picks_nlp) < 100, nrow(picks_nlp), 100)
+  idx_within_dist <- st_nn(picks_comp, picks_nlp, maxdist = 3000, k = k)
+  idx_within_dist <- unique(unlist(idx_within_dist))
+
+  picks_nlp_thinned <-
+    picks_nlp[!seq_len(nrow(picks_nlp)) %in% idx_within_dist, ]
+
+  picks_nlp_thinned$id <- as.character(picks_nlp_thinned$id)
+
+  picks <- rbind(picks_comp, picks_nlp_thinned)
+
+  return(picks)
+}
+
+#' Extract training data
+#'
+#' @param picks tibble of pick data
+#' @param predictors SpatRaster of predictors
+#'
+#' @return tibble
+#' @export
+extract_training <- function(picks, predictors) {
+  picks <- vect(picks)
+  pick_crds <- as.data.frame(crds(picks))
+  names(pick_crds) <- c("xcoords", "ycoords")
+
+  data <- extract(predictors, picks, ID = FALSE)
+  data <- data[, !(names(data) %in% c("xcoords", "ycoords"))]
+
+  data <- cbind(
+    data,
+    as.data.frame(picks)[, c("id", "bedrock_dep")],
+    pick_crds
+  )
+
+  return(data)
+}
+
 #' Summarize the number of picks with specific data types, including 'Shotholes'
 #' as boreholes and 'Contour' as 'Pseudo-observation'
 #'

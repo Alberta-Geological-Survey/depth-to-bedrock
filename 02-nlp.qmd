@@ -34,7 +34,6 @@ library(rules)
 library(doFuture)
 library(future)
 library(parallel)
-library(C50)
 
 source(here("R/dtb.R"))
 source(here("R/nlp.R"))
@@ -49,11 +48,9 @@ theme_set(theme_bw())
 Read bedrock top picks and water wells lithologs:
 
 ```{r read-data}
-ab_bnd <- vect(here("projdata/bnd-ab.gpkg"))
-
-picks <- readRDS(here("projdata/picks.rds"))
-
-lithologs <- readRDS(here("projdata/lithologs.rds"))
+ab_bnd = vect(here("projdata/bnd-ab.gpkg"))
+picks = readRDS(here("projdata/picks.rds"))
+lithologs = readRDS(here("projdata/lithologs.rds"))
 ```
 
 Summarize the compiled pick data based on the type of observation (borehole, outcrop etc.):
@@ -71,7 +68,7 @@ summarize_borehole_sources(picks)
 ```{r plot-pick-sources}
 #| fig-height: 7
 #| fig-width: 9
-picks_vct <- picks |>
+picks_vct = picks |>
   mutate(
     data_type = forcats::fct_recode(
       data_type,
@@ -111,7 +108,7 @@ ggplot() +
 Subset the picks from water wells only:
 
 ```{r subset-water-wells}
-picks_waterwells <- picks |> 
+picks_waterwells = picks |> 
   filter(source_type == "Water well") |>
   mutate(id = as.integer(id)) |>
   drop_na(id) |>
@@ -121,7 +118,7 @@ picks_waterwells <- picks |>
 Snap picks to water well intervals and assign units for labelled logs:
 
 ```{r snap-and-assign}
-lithologs_assigned <- lithologs |>
+lithologs_assigned = lithologs |>
   lithologs_join(picks_waterwells) |>
   lithologs_snap() |>
   lithologs_assign()
@@ -137,10 +134,10 @@ are removed based on:
  - Dropping logs that contain only one interval.
 
 ```{r split-labelled-unlabelled}
-missing_regex <- paste(nan_terms, collapse = "|")
-gravel_regex <- paste(gravel_terms, collapse = "|")
+missing_regex = paste(nan_terms, collapse = "|")
+gravel_regex = paste(gravel_terms, collapse = "|")
 
-labelled <- lithologs_assigned |>
+labelled = lithologs_assigned |>
   group_by(gicwellid) |>
   filter(
     !is.na(unit),
@@ -151,7 +148,7 @@ labelled <- lithologs_assigned |>
   select(-bedrock_dep) |> 
   ungroup()
 
-newdata <- lithologs_assigned |>
+newdata = lithologs_assigned |>
   group_by(gicwellid) |>
   filter(
     is.na(unit),
@@ -170,24 +167,24 @@ Plotting the 20 most commonly used words in each unit for material descriptions.
 Colour does not show such a strong distinction between bedrock and surficial. Bedrock units are overall described as 'grey' and surficial contain a mixture of 'brown' and 'grey' terms. Terms such as 'green' appear to be largely described to bedrock units, whereas surficial intervals are sometimes described as 'yellow', 'brown yellow' etc.
 
 ```{r word-occurrences}
-words_materials <- labelled |>
+words_materials = labelled |>
   unite("material", c(material, material_desc), sep = " ", na.rm = TRUE) |>
   unnest_tokens(word, material) |> 
   anti_join(stop_words, by = "word")
 
-unique_words <- function(x) {
-  words <- str_split(x, " ")
-  words <- map(words, function(string) unique(string))
-  unique_words <- map_chr(words, function(string) {
-    string[string == ""] <- NA
-    string <- na.omit(string)
+unique_words = function(x) {
+  words = str_split(x, " ")
+  words = map(words, function(string) unique(string))
+  unique_words = map_chr(words, function(string) {
+    string[string == ""] = NA
+    string = na.omit(string)
     paste(string, collapse = " ")
   })
-  unique_words[unique_words == ""] <- NA_character_
+  unique_words[unique_words == ""] = NA_character_
   unique_words
 }
 
-words_colours <- labelled |>
+words_colours = labelled |>
   unnest_tokens(word, colour, token = "ngrams", n = 2) |> 
   mutate(
     word = str_remove_all(word, "na"),
@@ -195,8 +192,8 @@ words_colours <- labelled |>
   ) |> 
   drop_na()
 
-words_materials$type <- "Material"
-words_colours$type <- "Colour"
+words_materials$type = "Material"
+words_colours$type = "Colour"
 
 bind_rows(words_materials, words_colours) |> 
   group_by(unit, word, type) |> 
@@ -232,7 +229,7 @@ Additional features are added to the lithologs that describe aspects related to:
  units.
 
 ```{r feature-engineering}
-labelled_feat <- labelled |>
+labelled_feat = labelled |>
   select(c(
     "unit",
     "gicwellid",
@@ -246,7 +243,7 @@ labelled_feat <- labelled |>
   )) |>
   add_features()
 
-newdata_feat <- newdata |>
+newdata_feat = newdata |>
   select(c(
     "gicwellid",
     "bh_depth",
@@ -263,15 +260,15 @@ newdata_feat <- newdata |>
 ### Model definition
 
 ```{r nlp-recipes}
-rec <- labelled_feat |>
+rec = labelled_feat |>
   recipe_nlp()
 
-clf <- boost_tree(trees = 500, learn_rate = 0.1, stop_iter = 20L) |>
+clf = boost_tree(trees = 500, learn_rate = 0.1, stop_iter = 20L) |>
   set_mode("classification") |>
   set_engine("xgboost", nthread = future::availableCores(), 
              tree_method = "gpu_hist")
 
-wflow <- workflow() |>
+wflow = workflow() |>
   add_recipe(rec) |>
   add_model(clf)
 ```
@@ -279,7 +276,7 @@ wflow <- workflow() |>
 ### Model training
 
 ```{r model-fitting}
-model_nlp <- wflow |>
+model_nlp = wflow |>
   fit(labelled_feat)
 ```
 
@@ -292,10 +289,10 @@ vip::vip(model_nlp, num_features = 20)
 ```{r cross-validation}
 # define resamples
 set.seed(1)
-resamples <- group_vfold_cv(labelled_feat, group = "gicwellid", v = 10)
+resamples = group_vfold_cv(labelled_feat, group = "gicwellid", v = 10)
 
 # fitting control
-ctrl <- control_resamples(
+ctrl = control_resamples(
   event_level = "first",
   allow_par = FALSE,
   verbose = FALSE,
@@ -304,7 +301,7 @@ ctrl <- control_resamples(
 
 # cross-validation
 set.seed(42)
-resample_results <- 
+resample_results = 
   fit_resamples(
     wflow,
     resamples = resamples,
@@ -318,7 +315,7 @@ resample_results <-
 Log loss on predicting the label:
 
 ```{r logloss}
-score_logloss <- resample_results |>
+score_logloss = resample_results |>
   collect_metrics() |>
   filter(.metric == "mn_log_loss") |>
   slice_min(mean)
@@ -329,9 +326,9 @@ score_logloss
 Assess the sensitivity and specificity at different cutoff thresholds. The prediction is not very sensitive to the cutoff threshold.
 
 ```{r cutoff-thresholds}
-resample_preds <- augment(resample_results)
+resample_preds = augment(resample_results)
 
-threshold_data <- resample_preds |>
+threshold_data = resample_preds |>
   threshold_perf(
     unit,
     .pred_Bedrock,
@@ -339,10 +336,10 @@ threshold_data <- resample_preds |>
     metrics = metric_set(sens, spec, precision, j_index)
   )
 
-threshold_data <- threshold_data |> 
+threshold_data = threshold_data |> 
   filter(.metric != "distance")
 
-max_j_index_threshold <- threshold_data %>%
+max_j_index_threshold = threshold_data %>%
   filter(.metric == "j_index") %>%
   filter(.estimate == max(.estimate)) %>%
   pull(.threshold)
@@ -359,13 +356,13 @@ threshold_data |>
     title = "Balancing performance by varying the threshold"
   )
 
-cutoff <- 0.7
+cutoff = 0.7
 ```
 
 RMSE on predicting the depth:
 
 ```{r rmse}
-resample_results_dtb <- resample_preds |>
+resample_results_dtb = resample_preds |>
   mutate(.pred_class = make_two_class_pred(
     .pred_Bedrock,
     threshold = cutoff,
@@ -374,13 +371,13 @@ resample_results_dtb <- resample_preds |>
   )) |>
   pick_bedrock(option = "first")
 
-resample_results_dtb <- inner_join(
+resample_results_dtb = inner_join(
   select(picks_waterwells, c(gicwellid, bedrock_dep)),
   resample_results_dtb,
   by = "gicwellid"
 )
 
-score_rmse <- rmse(
+score_rmse = rmse(
   resample_results_dtb,
   truth = bedrock_dep,
   estimate = .bedrock_dep
@@ -399,7 +396,7 @@ resample_results_dtb |>
 View the spatial distribution of the residuals:
 
 ```{r spatial-residuals}
-cv_picks <- resample_preds |>
+cv_picks = resample_preds |>
   mutate(.pred_class = make_two_class_pred(
     .pred_Bedrock,
     threshold = cutoff,
@@ -407,7 +404,7 @@ cv_picks <- resample_preds |>
     buffer = 0.1
   ))
 
-cv_tops <- pick_bedrock(cv_picks, option = "last") |> 
+cv_tops = pick_bedrock(cv_picks, option = "last") |> 
   inner_join(picks_waterwells, by = join_by("gicwellid")) |>
   mutate(.residual = bedrock_dep - .bedrock_dep)
 
@@ -426,11 +423,11 @@ cv_tops |>
 ### Prediction
 
 ```{r nlp-prediction}
-predictions <- predict(model_nlp, newdata_feat, type = "prob")
+predictions = predict(model_nlp, newdata_feat, type = "prob")
 ```
 
 ```{r create-picks-table}
-predictions <- predictions |>
+predictions = predictions |>
   mutate(.pred_class = make_two_class_pred(
     .pred_Bedrock,
     threshold = cutoff,
@@ -438,9 +435,9 @@ predictions <- predictions |>
     buffer = 0.1
   ))
 
-picks_nlp <- bind_cols(predictions, newdata)
+picks_nlp = bind_cols(predictions, newdata)
 
-picks_nlp <-
+picks_nlp =
   inner_join(picks_nlp, pick_bedrock(picks_nlp, option = "first")) |>
   rename(bedrock_dep = ".bedrock_dep") |>
   select("gicwellid", "longitude", "latitude", "gr_elev", "bedrock_dep") |>
@@ -454,13 +451,10 @@ picks_nlp <-
     bedrock_elev = gr_elev - bedrock_dep
   ) |>
   distinct(gicwellid, .keep_all = TRUE)
-
-write_csv(picks, here("outputs/picks.csv"))
-write_csv(picks_nlp, here("outputs/picks-nlp.csv"))
 ```
 
 ```{r nlp-prediction-example}
-id <- 186147
+id = 186147
 
 predict(model_nlp, newdata_feat |> filter(gicwellid == !!id), type = "prob") |> 
   bind_cols(newdata_feat |> filter(gicwellid == !!id)) |> 
@@ -472,5 +466,5 @@ predict(model_nlp, newdata_feat |> filter(gicwellid == !!id), type = "prob") |>
 ```{r store-results}
 write_rds(model_nlp, here("models/model-nlp.rds"))
 write_rds(resample_results, here("models/resamples-nlp.rds"))
-write_rds(picks_nlp, here("data/processed/picks-nlp.rds"))
+write_csv(picks_nlp, here("outputs/bedrock-depth-picks-nlp.csv"))
 ```

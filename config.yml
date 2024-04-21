@@ -1,0 +1,102 @@
+default:
+  resolution: 500
+  name: "prov"
+  dem: "data/dem-merit.tif"
+  reflectance: "data/modis.tif"
+
+  region:
+    xmin: 40470.7168184685
+    xmax: 987027.346545468
+    ymin: 5290215.795655759
+    ymax: 6914738.469407964
+
+  # data products
+  predictors: !expr glue::glue("data/predictors-{name}.tif")
+
+  # model results
+  model: !expr glue::glue("models/dtb-model-{name}.rds")
+  tuning: !expr glue::glue("models/dtb-tuning-{name}.rds")
+  testset: !expr glue::glue("models/dtb-testset-{name}.rds")
+
+  # outputs
+  dtb: !expr glue::glue("outputs/dtb-{name}.tif")
+  btopo: !expr glue::glue("outputs/btopo-{name}.tif")
+  predint: !expr glue::glue("outputs/predint-{name}.tif")
+
+# city of edmonton project 100 m
+edmonton100:
+  resolution: 100
+  name: "edmonton100"
+  dem: "data/dem-esrd.tif"
+  region:
+    xmin: 564550
+    xmax: 635050
+    ymin: 5896800
+    ymax: 5958221.234375
+
+# city of edmonton project 250 m
+edmonton250:
+  resolution: 250
+  name: "edmonton250"
+  dem: "data/dem-esrd.tif"
+  region:
+    xmin: 564550
+    xmax: 635050
+    ymin: 5896800
+    ymax: 5958221.234375
+
+# city of edmonton project 500 m
+edmonton500:
+  resolution: 500
+  name: "edmonton500"
+  dem: "data/dem-esrd.tif"
+  region:
+    xmin: 564550
+    xmax: 635050
+    ymin: 5896800
+    ymax: 5958221.234375
+
+# northwest alberta aoi
+nwab:
+  name: "nwab"
+  region:
+    xmin: 220554
+    xmax: 478118
+    ymin: 6427403
+    ymax: 6656935
+
+# mountains aoi
+mnts:
+  name: "mnts"
+  region:
+    xmin: 459473
+    xmax: 530280
+    ymin: 5621257
+    ymax: 5688716
+
+# saos aoi
+saos:
+  name: "saos"
+  region:
+    xmin: 633875
+    xmax: 821422
+    ymin: 6109081
+    ymax: 6295954
+
+# west-central alberta aoi
+wcab:
+  name: "wcab"
+  region:
+    xmin: 265324
+    xmax: 463220
+    ymin: 5923836
+    ymax: 6093134
+
+# moose lake
+moose:
+  name: "moose-lake"
+  region:
+    xmin: 609006.1790030079
+    xmax: 856006.1790030079
+    ymin: 6022251.257840298
+    ymax: 6297251.257840298
