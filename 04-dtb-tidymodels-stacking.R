@@ -23,7 +23,7 @@ ncores <- future::availableCores()
 # flags ----
 kwargs <-
   optparse::OptionParser() |>
-  optparse::add_option("--config", default = "edmonton500", type = "character") |>
+  optparse::add_option("--config", default = "edmonton100", type = "character") |>
   optparse::parse_args()
 
 config <- kwargs$config
@@ -72,14 +72,14 @@ rec <- head(data) |>
     num_comp = 10L
   )
 
-rec_norm <- rec |> 
+rec_norm <- rec |>
   step_normalize(all_numeric_predictors())
 
-rec_crds <- rec |> 
-  step_select(c(xcoords, ycoords, bedrock_dep))
+rec_crds <- rec |>
+  step_rm(-c(xcoords, ycoords, all_outcomes()))
 
-rec_dem <- rec |> 
-  step_select(c(xcoords, ycoords, dem, bedrock_dep)) |> 
+rec_dem <- rec |>
+  step_rm(-c(xcoords, ycoords, dem, all_outcomes())) |>
   step_normalize(all_numeric_predictors())
 
 rf <- rand_forest(trees = 500L, min_n = tune(), mtry = tune()) |>
@@ -89,7 +89,7 @@ rf <- rand_forest(trees = 500L, min_n = tune(), mtry = tune()) |>
 xgb <- boost_tree(
     trees = tune(),
     tree_depth = tune(),
-    learn_rate = tune(),
+    learn_rate = 0.1,
     sample_size = tune()
   ) |>
   set_mode("regression") |>
@@ -111,9 +111,9 @@ wflowset <- workflow_set(
   cross = FALSE
 )
 
-wflowset <- wflowset |> 
+wflowset <- wflowset |>
   option_add(
-    id = "base_rand_forest", 
+    id = "base_rand_forest",
     grid = grid_random(list(min_n = min_n(c(1, 10)), mtry = mtry(c(5, 41))))
   )
 
@@ -134,25 +134,25 @@ model <- stacks() |>
   blend_predictions() |>
   fit_members()
 
+autoplot(model, type = "weights")
 write_rds(model, conf$model)
 
 ## test set predictions ----
-ypreds <- last_fit(model, splits, metrics = metric_set(rmse))
+ypreds <- augment(model, testing(splits)) |>
+  select(c(bedrock_dep, .pred, .resid))
 
-rmse <- ypreds |>
-  collect_metrics(summarize = TRUE) |>
-  filter(.metric == "rmse") |>
-  pull(.estimate)
-
-cat("rmse:", rmse, "\n")
-write_rds(ypreds, here(conf$testset)
+rmse <- rmse(ypreds, bedrock_dep, .pred)
+cat("rmse:", rmse$.estimate, "\n")
+write_rds(ypreds, here(conf$testset))
 
 # raster prediction ----
 window(predictors) <- ext(unlist(conf$region))
 
 preds <- predict(predictors, model) |>
   setNames("DTB")
-writeRaster(preds, conf$dtb, overwrite = TRUE)
 
 btopo <- predictors$dem - preds
+window(predictors) <- NULL
+
+writeRaster(preds, conf$dtb, overwrite = TRUE)
 writeRaster(btopo, conf$btopo, overwrite = TRUE)

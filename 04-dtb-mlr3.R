@@ -72,14 +72,17 @@ preproc = pop_impute %>>%
   pop_cluster
 
 # define model
+lm = lrn("regr.cv_glmnet")
 rf = lrn("regr.ranger", num.threads = ncores)
 xgb  = lrn("regr.xgboost", nthread = ncores)
 knn = as_learner(po("scale") %>>% lrn("regr.kknn", kernel = "gaussian", k = 12))
 knn_sp = as_learner(po("select", selector = selector_name(c("xcoords", "ycoords"))) %>>% knn)
+
 regr = pipeline_stacking(
-  base_learners = list(rf, xgb, knn, knn_sp),
-  super_learner = lrn("regr.cv_glmnet"),
-  folds = 3
+  base_learners = list(lm, xgb, knn, knn_sp),
+  super_learner = rf,
+  folds = 3,
+  use_features = TRUE
 )
 
 pipeline = as_learner(preproc %>>% regr)
