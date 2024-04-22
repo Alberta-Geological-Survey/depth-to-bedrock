@@ -134,7 +134,9 @@ model <- stacks() |>
   blend_predictions() |>
   fit_members()
 
-autoplot(model, type = "weights")
+autoplot(model, type = "weights") +
+  theme_minimal()
+
 write_rds(model, conf$model)
 
 ## test set predictions ----
