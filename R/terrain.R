@@ -3,10 +3,12 @@
 #' @param dem_input SpatRaster DEM.
 #' @param res resolution (in units of the DEM) used for the terrain analysis.
 #'   Default is 500.
+#' @param smoothing numeric to indicate degree of smoothing of DEM using a
+#'   low-pass filter. If smoothing = 1, then no smoothing is applied.
 #'
 #' @return SpatRaster object of terrain analysis grid.
 #' @export
-terrain_analysis <- function(dem_input, res = 500) {
+terrain_analysis <- function(dem_input, res = 500, smoothing = 1) {
   # create bridge to saga-gis
   saga <- Rsagacmd::saga_gis(raster_format = "SAGA", all_outputs = FALSE)
 
@@ -17,6 +19,16 @@ terrain_analysis <- function(dem_input, res = 500) {
     target_user_size = res,
     output = tempfile(fileext = ".sgrd")
   )
+
+  if (smoothing > 1) {
+    dem <- saga$grid_filter$resampling_filter(
+      grid = dem,
+      scale = smoothing,
+      lowpass = tempfile(fileext = ".sgrd"),
+      highpass = tempfile(fileext = ".sgrd")
+    )
+    dem <- dem$lopass
+  }
   dem <- setNames(dem, "dem")
 
   # florinsky curvature

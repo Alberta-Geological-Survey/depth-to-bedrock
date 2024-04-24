@@ -13,21 +13,22 @@ conf = config::get(config = config)
 
 # prepare terrain grids ----
 dem = rast(conf$dem)
-modis = rast(conf$reflectance)
+reflectance = rast(conf$reflectance)
+aoi = ext(unlist(conf$region))
 
 # terrain analysis
-terrain_grids = terrain_analysis(dem, conf$resolution)
+dem = crop(dem, aoi)
+terrain_grids = terrain_analysis(dem, conf$resolution, smoothing = 5)
 xcoords = setNames(init(terrain_grids[[1]], "x"))
 ycoords = setNames(init(terrain_grids[[1]], "y"))
 
-# align modis ----
-modis_aligned = resample(modis, terrain_grids[[1]])
-modis_aligned = setNames(modis_aligned, make.names(names(modis)))
-names(modis_aligned) = gsub("MOD_Grid_500m_Surface_Reflectance.", "",
-                            names(modis_aligned))
+# align reflectance ----
+reflectance_aligned = resample(reflectance, terrain_grids[[1]])
+reflectance_aligned = setNames(reflectance_aligned, make.names(names(reflectance)))
+names(reflectance_aligned) = gsub("lc89_2021.", "", names(reflectance_aligned))
 
 # store predictors ----
-stack = c(terrain_grids, modis_aligned, xcoords, ycoords)
+stack = c(terrain_grids, reflectance_aligned, xcoords, ycoords)
 
 writeRaster(
   stack,

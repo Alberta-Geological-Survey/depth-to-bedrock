@@ -2,7 +2,7 @@ default:
   resolution: 500
   name: "prov"
   dem: "data/dem-merit.tif"
-  reflectance: "data/modis.tif"
+  reflectance: !expr c("data/lc89_2021_blue.tif", "data/lc89_2021_green.tif", "data/lc89_2021_red.tif", "data/lc89_2021_nir.tif", "data/lc89_2021_swir1.tif", "data/lc89_2021_swir2.tif")
 
   region:
     xmin: 40470.7168184685
