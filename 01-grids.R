@@ -8,24 +8,26 @@ source(here("R/eo.R"))
 source(here("R/terrain.R"))
 
 # setup environment ----
-config = "edmonton100"
+config = "edmonton500"
 conf = config::get(config = config)
 
 # prepare terrain grids ----
 dem = rast(conf$dem)
-reflectance = rast(conf$reflectance)
+reflectance = rast(here(conf$reflectance))
 aoi = ext(unlist(conf$region))
 
 # terrain analysis
 dem = crop(dem, aoi)
-terrain_grids = terrain_analysis(dem, conf$resolution, smoothing = 5)
-xcoords = setNames(init(terrain_grids[[1]], "x"))
-ycoords = setNames(init(terrain_grids[[1]], "y"))
+terrain_grids = terrain_analysis(dem, conf$resolution)
+xcoords = setNames(init(terrain_grids[[1]], "x"), "xcoords")
+ycoords = setNames(init(terrain_grids[[1]], "y"), "ycoords")
 
 # align reflectance ----
 reflectance_aligned = resample(reflectance, terrain_grids[[1]])
-reflectance_aligned = setNames(reflectance_aligned, make.names(names(reflectance)))
-names(reflectance_aligned) = gsub("lc89_2021.", "", names(reflectance_aligned))
+reflectance_aligned = setNames(
+  reflectance_aligned,
+  c("l8.blue", "l8.green", "l8.red", "l8.nir", "l8.swir1", "l8.swir2")
+)
 
 # store predictors ----
 stack = c(terrain_grids, reflectance_aligned, xcoords, ycoords)

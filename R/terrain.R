@@ -3,12 +3,10 @@
 #' @param dem_input SpatRaster DEM.
 #' @param res resolution (in units of the DEM) used for the terrain analysis.
 #'   Default is 500.
-#' @param smoothing numeric to indicate degree of smoothing of DEM using a
-#'   low-pass filter. If smoothing = 1, then no smoothing is applied.
 #'
 #' @return SpatRaster object of terrain analysis grid.
 #' @export
-terrain_analysis <- function(dem_input, res = 500, smoothing = 1) {
+terrain_analysis <- function(dem_input, res = 500) {
   # create bridge to saga-gis
   saga <- Rsagacmd::saga_gis(raster_format = "SAGA", all_outputs = FALSE)
 
@@ -19,16 +17,6 @@ terrain_analysis <- function(dem_input, res = 500, smoothing = 1) {
     target_user_size = res,
     output = tempfile(fileext = ".sgrd")
   )
-
-  if (smoothing > 1) {
-    dem <- saga$grid_filter$resampling_filter(
-      grid = dem,
-      scale = smoothing,
-      lowpass = tempfile(fileext = ".sgrd"),
-      highpass = tempfile(fileext = ".sgrd")
-    )
-    dem <- dem$lopass
-  }
   dem <- setNames(dem, "dem")
 
   # florinsky curvature
@@ -44,7 +32,7 @@ terrain_analysis <- function(dem_input, res = 500, smoothing = 1) {
     unit_slope = 1,
     unit_aspect = 1
   )
-  lsp_local <- terra::rast(lsp_local) |>
+  lsp_local <- rast(lsp_local) |>
     setNames(c("slope", "aspect", "c_long", "c_cros", "c_tota", "c_roto"))
 
   tri <- saga$ta_morphometry$terrain_ruggedness_index_tri(
@@ -75,7 +63,7 @@ terrain_analysis <- function(dem_input, res = 500, smoothing = 1) {
       mrrtf = tempfile(fileext = ".sgrd")
     )
 
-  mrvbf <- terra::rast(mrvbf) |>
+  mrvbf <- rast(mrvbf) |>
     setNames(c("mrvbf", "mrrtf"))
 
   # topographic openness
@@ -87,7 +75,7 @@ terrain_analysis <- function(dem_input, res = 500, smoothing = 1) {
     method = 2
   )
 
-  openness <- terra::rast(openness) |>
+  openness <- rast(openness) |>
     setNames(c("openness_pos", "openness_neg"))
 
   # topographic wetness index
@@ -127,7 +115,7 @@ terrain_analysis <- function(dem_input, res = 500, smoothing = 1) {
   strahler_thresholds <- 5:7
   vdchns <- lapply(strahler_thresholds, vdchn_func, strahler = strahler,
                    dem = dem)
-  vdchns <- terra::rast(vdchns) |>
+  vdchns <- rast(vdchns) |>
     setNames(glue::glue("vdchn{strahler_thresholds}"))
 
   # proximity to channels
@@ -152,7 +140,7 @@ terrain_analysis <- function(dem_input, res = 500, smoothing = 1) {
   }
 
   hdchns <- lapply(strahler_thresholds, hdchn_func, strahler = strahler, dem = dem)
-  hdchns <- terra::rast(hdchns) |>
+  hdchns <- rast(hdchns) |>
     setNames(glue::glue("hdchn{strahler_thresholds}"))
 
   # valley depth
@@ -179,7 +167,7 @@ terrain_analysis <- function(dem_input, res = 500, smoothing = 1) {
     )
   }, vd = vall_depth)
 
-  rsps <- terra::rast(rsps) |>
+  rsps <- rast(rsps) |>
     setNames(glue::glue("rsp{strahler_thresholds}"))
 
   # relative heights and slope positions
@@ -190,6 +178,7 @@ terrain_analysis <- function(dem_input, res = 500, smoothing = 1) {
     nh = tempfile(fileext = ".sgrd"),
     sh = tempfile(fileext = ".sgrd")
   ) |>
+    rast() |>
     setNames(c("ho", "hu", "nh", "sh"))
 
   # multiscale tpi

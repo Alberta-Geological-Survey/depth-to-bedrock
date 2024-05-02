@@ -21,25 +21,22 @@ dir.create(here("outputs"), showWarnings = FALSE)
 ncores <- future::availableCores()
 
 # flags ----
-kwargs <-
-  optparse::OptionParser() |>
-  optparse::add_option("--config", default = "edmonton100", type = "character") |>
-  optparse::parse_args()
-
-config <- kwargs$config
+config <- "edmonton100"
 
 # setup ----
 conf <- config::get(config = config)
 
 # read data ----
-predictors <- rast(conf$predictors)
+predictors <- rast(here(conf$predictors))
 
-picks_comp <- read_csv("data/bedrock-depth-picks.csv") |>
+picks_comp <-
+  read_csv(here("data/bedrock-depth-picks.csv")) |>
   mutate(pick_date = as_date(pick_date)) |>
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326) |>
   st_transform(3402)
 
-picks_nlp <- read_csv("outputs/bedrock-depth-picks-nlp.csv") |>
+picks_nlp <-
+  read_csv(here("outputs/bedrock-depth-picks-nlp.csv")) |>
   mutate(pick_date = as_date(pick_date)) |>
   st_as_sf(coords = c("longitude", "latitude"), crs = 4326) |>
   st_transform(3402)
@@ -137,7 +134,7 @@ model <- stacks() |>
 autoplot(model, type = "weights") +
   theme_minimal()
 
-write_rds(model, conf$model)
+write_rds(model, here(conf$model))
 
 ## test set predictions ----
 ypreds <- augment(model, testing(splits)) |>
@@ -145,6 +142,7 @@ ypreds <- augment(model, testing(splits)) |>
 
 rmse <- rmse(ypreds, bedrock_dep, .pred)
 cat("rmse:", rmse$.estimate, "\n")
+
 write_rds(ypreds, here(conf$testset))
 
 # raster prediction ----
@@ -156,5 +154,5 @@ preds <- predict(predictors, model) |>
 btopo <- predictors$dem - preds
 window(predictors) <- NULL
 
-writeRaster(preds, conf$dtb, overwrite = TRUE)
-writeRaster(btopo, conf$btopo, overwrite = TRUE)
+writeRaster(preds, here(conf$dtb), overwrite = TRUE)
+writeRaster(btopo, here(conf$btopo), overwrite = TRUE)
