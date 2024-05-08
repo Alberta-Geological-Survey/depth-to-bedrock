@@ -34,11 +34,10 @@ library(rules)
 library(doFuture)
 library(future)
 library(parallel)
-
 source(here("R/dtb.R"))
 source(here("R/nlp.R"))
 
-theme_set(theme_bw())
+theme_set(theme_minimal())
 ```
 
 ## Examine compiled DTB data
@@ -266,7 +265,7 @@ rec = labelled_feat |>
 clf = boost_tree(trees = 500, learn_rate = 0.1, stop_iter = 20L) |>
   set_mode("classification") |>
   set_engine("xgboost", nthread = future::availableCores(), 
-             tree_method = "gpu_hist")
+             tree_method = "hist")
 
 wflow = workflow() |>
   add_recipe(rec) |>
@@ -355,13 +354,13 @@ threshold_data |>
     y = "Metric Estimate",
     title = "Balancing performance by varying the threshold"
   )
-
-cutoff = 0.7
 ```
 
 RMSE on predicting the depth:
 
 ```{r rmse}
+cutoff = 0.7
+
 resample_results_dtb = resample_preds |>
   mutate(.pred_class = make_two_class_pred(
     .pred_Bedrock,
@@ -439,8 +438,8 @@ picks_nlp = bind_cols(predictions, newdata)
 
 picks_nlp =
   inner_join(picks_nlp, pick_bedrock(picks_nlp, option = "first")) |>
-  rename(bedrock_dep = ".bedrock_dep") |>
-  select("gicwellid", "longitude", "latitude", "gr_elev", "bedrock_dep") |>
+  rename(bedrock_dep = ".bedrock_dep", id = "gicwellid") |>
+  select("id", "longitude", "latitude", "gr_elev", "bedrock_dep") |>
   mutate(
     data_type = "Borehole",
     ags_source = "NLP autopicked",
@@ -448,15 +447,21 @@ picks_nlp =
     source_type = "Water well",
     stratigraphy = "Bedrock top",
     data_source = "Water well",
-    bedrock_elev = gr_elev - bedrock_dep
+    bedrock_elev = gr_elev - bedrock_dep,
+    project = "Provincial mapping",
+    gr_elev_source = "MERIT",
+    source_table = "Predicted"
   ) |>
-  distinct(gicwellid, .keep_all = TRUE)
+  distinct(id, .keep_all = TRUE)
+
+glimpse(picks_nlp)
 ```
 
 ```{r nlp-prediction-example}
 id = 186147
 
-predict(model_nlp, newdata_feat |> filter(gicwellid == !!id), type = "prob") |> 
+model_nlp |> 
+  predict(newdata_feat |> filter(gicwellid == !!id), type = "prob") |> 
   bind_cols(newdata_feat |> filter(gicwellid == !!id)) |> 
   select(gicwellid, int_top_dep, material, material_desc, colour, .pred_Bedrock)
 ```

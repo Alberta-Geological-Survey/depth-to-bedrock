@@ -81,7 +81,8 @@ rec_dem <- rec |>
 
 rf <- rand_forest(trees = 500L, min_n = tune(), mtry = tune()) |>
   set_mode("regression") |>
-  set_engine("ranger", seed = 1234, splitrule = "extratrees", num.threads = !!ncores)
+  set_engine("ranger", seed = 1234, splitrule = "extratrees",
+             num.threads = !!ncores)
 
 xgb <- boost_tree(
     trees = tune(),
@@ -119,10 +120,11 @@ res <- workflow_map(
   resamples = resamples,
   metrics = metric_set(rmse),
   control = control_stack_grid(),
-  grid = 20L,
+  grid = 10L,
   seed = 44
 )
-autoplot(res)
+score_plot <- autoplot(res)
+ggsave(here(conf$scoreplot), score_plot, width = 6, height = 4)
 write_rds(res, conf$tuning)
 
 # stacking
@@ -130,9 +132,6 @@ model <- stacks() |>
   add_candidates(res) |>
   blend_predictions() |>
   fit_members()
-
-autoplot(model, type = "weights") +
-  theme_minimal()
 
 write_rds(model, here(conf$model))
 
@@ -146,13 +145,9 @@ cat("rmse:", rmse$.estimate, "\n")
 write_rds(ypreds, here(conf$testset))
 
 # raster prediction ----
-window(predictors) <- ext(unlist(conf$region))
-
 preds <- predict(predictors, model) |>
   setNames("DTB")
-
 btopo <- predictors$dem - preds
-window(predictors) <- NULL
 
 writeRaster(preds, here(conf$dtb), overwrite = TRUE)
 writeRaster(btopo, here(conf$btopo), overwrite = TRUE)

@@ -8,7 +8,7 @@ source(here("R/eo.R"))
 source(here("R/terrain.R"))
 
 # setup environment ----
-config = "edmonton500"
+config = "prov250"
 conf = config::get(config = config)
 
 # prepare terrain grids ----

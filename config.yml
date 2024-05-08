@@ -17,11 +17,16 @@ default:
   model: !expr glue::glue("models/dtb-model-{name}.rds")
   tuning: !expr glue::glue("models/dtb-tuning-{name}.rds")
   testset: !expr glue::glue("models/dtb-testset-{name}.rds")
+  scoreplot: !expr glue::glue("models/score-plot-{name}.pdf")
 
   # outputs
   dtb: !expr glue::glue("outputs/dtb-{name}.tif")
   btopo: !expr glue::glue("outputs/btopo-{name}.tif")
   predint: !expr glue::glue("outputs/predint-{name}.tif")
+
+prov250:
+  resolution: 250
+  name: "prov250"
 
 # city of edmonton project 100 m
 edmonton100:

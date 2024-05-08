@@ -1,10 +1,11 @@
 library(here)
+library(glue)
 library(data.table)
 library(terra)
 library(sf)
 library(mlr3verse)
 library(mlr3pipelines)
-library(mlr3hyperband)
+library(mlr3extralearners)
 library(mlr3spatialops)
 library(ggplot2)
 library(nngeo)
@@ -55,10 +56,12 @@ task$add_strata("bedrock_dep")
 task$set_col_roles("id", roles = "name")
 
 # define preprocessing
-pop_function = po("mutate", mutation = list(
-  aspect = ~ ifelse(is.na(aspect), 0, aspect),
-  easternness = ~ cos(aspect * (pi / 180)),
-  northerness = ~ sin(aspect * (pi / 180))
+pop_function = PipeOpMutate$new(param_vals = list(
+  mutation = list(
+    aspect = ~ ifelse(is.na(aspect), 0, aspect),
+    easternness = ~ cos(aspect * (pi / 180)),
+    northerness = ~ sin(aspect * (pi / 180))
+  )
 ))
 
 pop_cluster = PipeOpSpatialDist$new(
@@ -75,17 +78,33 @@ xgb = lrn("regr.xgboost", nthread = ncores, nrounds = 500, eta = 0.1,
           max_depth = 15, subsample = 0.67)
 
 knn1 =
-  po("select", selector = selector_name(c("xcoords", "ycoords", "dem"))) %>>%
-  po("scale") %>>%
-  lrn("regr.kknn", kernel = "gaussian", k = 12, id = "knn.dem")
+  PipeOpSelect$new(param_vals = list(selector = selector_name(c(
+    "xcoords", "ycoords", "dem"
+  )))) %>>%
+  PipeOpScale$new() %>>%
+  lrn("regr.kknn",
+      kernel = "gaussian",
+      k = 12,
+      id = "knn.dem")
 
-knn2 = po("select", selector = selector_name(c("xcoords", "ycoords"))) %>>%
-  lrn("regr.kknn", kernel = "gaussian", k = 12, id = "knn.crds12")
+knn2 =
+  PipeOpSelect$new(param_vals = list(selector = selector_name(c(
+    "xcoords", "ycoords"
+  )))) %>>%
+  lrn("regr.kknn",
+      kernel = "gaussian",
+      k = 12,
+      id = "knn.crds12")
 
-knn3 = po("select", selector = selector_name(c("xcoords", "ycoords"))) %>>%
-  lrn("regr.kknn", kernel = "inv", k = 25, id = "knn.crds25")
+knn3 =
+  PipeOpSelect$new(param_vals = list(selector = selector_name(c(
+    "xcoords", "ycoords"
+  )))) %>>%
+  lrn("regr.kknn",
+      kernel = "inv",
+      k = 25,
+      id = "knn.crds25")
 
-library(mlr3extralearners)
 cubist = lrn("regr.cubist", neighbors = 5, committees = 25)
 
 base_learners = lapply(list(rf, xgb, knn1, knn2, knn3, cubist), as_learner)
@@ -117,9 +136,10 @@ yhat = stack$predict(task, row_ids = test_ids)
 score_rmse = yhat$score(msr("regr.rmse"))
 score_mae = yhat$score(msr("regr.mae"))
 
-autoplot(yhat) +
-  ggtitle(glue::glue("RMSE: round({score_rmse}, 2)"))
+score_plot <- autoplot(yhat) +
+  ggtitle(glue("RMSE: {round(score_rmse, 2)}"))
 
+ggsave(here(conf$scoreplot), score_plot, width = 6, height = 6)
 saveRDS(yhat, here(conf$testset))
 
 # raster prediction ----
