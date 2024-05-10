@@ -11,7 +11,7 @@ execute:
   message: false
   warning: false
 editor_options: 
-  chunk_output_type: console
+  chunk_output_type: inline
 ---
 
 ## Setup
@@ -365,8 +365,7 @@ resample_results_dtb = resample_preds |>
   mutate(.pred_class = make_two_class_pred(
     .pred_Bedrock,
     threshold = cutoff,
-    levels = c("Bedrock", "Surficial"),
-    buffer = 0.1
+    levels = c("Bedrock", "Surficial")
   )) |>
   pick_bedrock(option = "first")
 
@@ -430,8 +429,7 @@ predictions = predictions |>
   mutate(.pred_class = make_two_class_pred(
     .pred_Bedrock,
     threshold = cutoff,
-    levels = c("Bedrock", "Surficial"),
-    buffer = 0.1
+    levels = c("Bedrock", "Surficial")
   ))
 
 picks_nlp = bind_cols(predictions, newdata)
@@ -463,7 +461,26 @@ id = 186147
 model_nlp |> 
   predict(newdata_feat |> filter(gicwellid == !!id), type = "prob") |> 
   bind_cols(newdata_feat |> filter(gicwellid == !!id)) |> 
-  select(gicwellid, int_top_dep, material, material_desc, colour, .pred_Bedrock)
+  select(gicwellid, int_top_dep, material, material_desc, colour, .pred_Bedrock) |> 
+    mutate(pred_class = make_two_class_pred(
+    .pred_Bedrock,
+    threshold = cutoff,
+    levels = c("Bedrock", "Surficial")
+  ))
+```
+
+```{r nlp-prediction-example2}
+id = 1165658
+
+model_nlp |> 
+  predict(newdata_feat |> filter(gicwellid == !!id), type = "prob") |> 
+  bind_cols(newdata_feat |> filter(gicwellid == !!id)) |> 
+  select(gicwellid, int_top_dep, material, material_desc, colour, .pred_Bedrock) |> 
+  mutate(pred_class = make_two_class_pred(
+    .pred_Bedrock,
+    threshold = cutoff,
+    levels = c("Bedrock", "Surficial")
+  ))
 ```
 
 ### Store results

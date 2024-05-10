@@ -21,7 +21,7 @@ dir.create(here("outputs"), showWarnings = FALSE)
 ncores <- future::availableCores()
 
 # flags ----
-config <- "edmonton100"
+config <- "edmonton250"
 
 # setup ----
 conf <- config::get(config = config)
